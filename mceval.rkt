@@ -23,6 +23,9 @@
         ((assignment? exp) (eval-assignment exp env))
         ((definition? exp) (eval-definition exp env))
         ((if? exp) (eval-if exp env))
+        ((and? exp) (eval-and (rest exp) env))
+        ((or? exp) (eval-or (rest exp) env))
+        ((let? exp) (eval-let exp env))
         ((lambda? exp)
          (make-procedure (lambda-parameters exp)
                          (lambda-body exp)
@@ -78,6 +81,28 @@
                     (mceval (definition-value exp) env)
                     env)
   'ok)
+
+(define (eval-and exp env)
+  (cond
+    [(null? exp) #t]
+    [(last-exp? exp) (mceval (first-exp exp) env)]
+    [(false? (mceval (first-exp exp) env)) #f]
+    [else (eval-and (rest exp) env)]))
+
+(define (eval-or exp env)
+  (let ([expr '()])
+    (define (let-or ex)
+      (if (null? ex) #f
+        (begin
+          (set! expr (mceval (first-exp ex) env))
+          (if (last-exp? ex) expr
+            (if (true? expr) expr (let-or (rest ex)))))))
+    (let-or exp)))
+
+(define (eval-let exp env)
+  (eval-sequence (cddr exp)
+    (extend-environment (map car (cadr exp))
+      (list-of-values (map cadr (cadr exp)) env) env)))
 
 ;;;SECTION 4.1.2
 
@@ -199,6 +224,12 @@
                      (sequence->exp (cond-actions first))
                      (expand-clauses rest))))))
 
+(define (and? exp) (tagged-list? exp 'and))
+
+(define (or? exp) (tagged-list? exp 'or))
+
+(define (let? exp) (tagged-list? exp 'let))
+
 ;;;SECTION 4.1.3
 
 (define (true? x)
@@ -305,7 +336,16 @@
         (list 'cdr cdr)
         (list 'cons cons)
         (list 'null? null?)
-;;      more primitives
+        (list '+ +)
+        (list '* *)
+        (list '- -)
+        (list '/ /)
+        (list '< <)
+        (list '<= <=)
+        (list '= =)
+        (list '>= >=)
+        (list '> >)
+        (list 'error (lambda () (error "Metacircular Interpreter Aborted")))
         ))
 
 (define (primitive-procedure-names)
